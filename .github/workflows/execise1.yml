@@ -1,12 +1,13 @@
+---
 name: my first ci
 on:
   push:
-    branches: main
+    branches: [main]
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: printting
+      - name: printing
         run: |
           echo "printing CI ...."
           date
