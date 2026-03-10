@@ -7,8 +7,9 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: printing
-        run: |
-          echo "printing CI ...."
-          date
-          echo "ci complete!"
+      - name: start
+        run: echo "starting ci...."
+      - name: show date
+        run: date
+      - name: done
+        run: echo "ci complete"
