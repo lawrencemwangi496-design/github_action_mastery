@@ -1,0 +1,13 @@
+name: my first ci
+on:
+  push:
+    branches: main
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: printting
+        run: |
+          echo "printing CI ...."
+          date
+          echo "ci complete!"
