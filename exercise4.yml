@@ -1,0 +1,46 @@
+---
+name: need in github actions
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: learnhub-central
+    steps:
+      - name: load code
+        uses: actions/checkout@v4
+      - name: installing dependencies
+        run: npm ci
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node version: "20"
+          chache: npm
+      - name: syntax checking
+        run: |
+          npx tsc --noEmit
+          npm run lint
+  build:
+    needs: syntax
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: learnhub-central
+    steps:
+      - name: load code
+        uses: actions/checkout@v4
+      - name: installing dependencies
+        run: npm ci
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node version: "20"
+          chache: npm
+      - name: building
+        if: github.ref == 'refs/heads/main'
+        run: npm run build
