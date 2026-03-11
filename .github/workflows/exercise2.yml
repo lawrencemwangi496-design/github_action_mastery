@@ -19,5 +19,4 @@ on:
           - debug
           - warn
           - info
-          - warning
           - error
