@@ -1,0 +1,44 @@
+---
+name: "jobs in github actions"
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+  workflow_dispatch:
+    inputs:
+      enviroment:
+        description: 'first job for scanning packages and syntax'
+        required: true
+        default: info
+        type: choice
+        options:
+          - syntax
+          - dependencies
+          - full
+jobs:
+  scanning:
+    runs-on: ubuntu-latest
+    steps:
+      - name: load code
+        uses: actions/checkout@v4
+      - name: installing dependencies
+        run: npm ci
+      - name: syntax check
+        if: ${{ github.event.inputs.enviroment == 'syntax' }}
+        run: |
+          npx tsc --noEmit
+          npm run lint
+      - name: checking dependencies
+        if: ${{ github.event.inputs.enviroment == 'dependencies'}}
+        run: |
+          npm audit
+          npm outdated
+      - name: full scanning
+        if: ${{ github.event.inputs.enviroment == 'full' }}
+        run: |
+          npx tsc --noEmit
+          npm run lint
+          npm audit
+          npm outdated
