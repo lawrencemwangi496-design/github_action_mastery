@@ -20,9 +20,16 @@ on:
 jobs:
   scanning:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: learnhub-central
     steps:
       - name: load code
         uses: actions/checkout@v4
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
       - name: installing dependencies
         run: npm ci
       - name: syntax check
