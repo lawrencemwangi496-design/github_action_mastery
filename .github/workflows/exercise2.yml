@@ -1,0 +1,23 @@
+---
+name: triggers
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+    inputs:
+      log_level:
+        description: 'first manual triggers'
+        required: true
+        default: info
+        type: choice
+        options:
+          - debug
+          - warn
+          - info
+          - warning
+          - error
