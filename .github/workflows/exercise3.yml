@@ -8,10 +8,10 @@ on:
       - 'package.json'
   workflow_dispatch:
     inputs:
-      enviroment:
+      environment:
         description: 'first job for scanning packages and syntax'
         required: true
-        default: info
+        default: syntax
         type: choice
         options:
           - syntax
@@ -26,17 +26,19 @@ jobs:
       - name: installing dependencies
         run: npm ci
       - name: syntax check
-        if: ${{ github.event.inputs.enviroment == 'syntax' }}
+        if: ${{ github.event.inputs.environment == 'syntax'}}
         run: |
           npx tsc --noEmit
           npm run lint
       - name: checking dependencies
-        if: ${{ github.event.inputs.enviroment == 'dependencies'}}
+        if: ${{ github.event.inputs.environment == 'dependencies'}}
         run: |
           npm audit
           npm outdated
       - name: full scanning
-        if: ${{ github.event.inputs.enviroment == 'full' }}
+        if: >
+          ${{ github.event.inputs.environment == 'full'
+          || github.event_name == 'pull_request'  }}
         run: |
           npx tsc --noEmit
           npm run lint
