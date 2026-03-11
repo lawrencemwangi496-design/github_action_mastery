@@ -1,7 +1,7 @@
 ---
 name: triggers
 on:
-  pull_request:
+  push:
     branches: [main]
     paths:
       - 'src/**'
@@ -20,3 +20,11 @@ on:
           - warn
           - info
           - error
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: print log level
+        run: echo "running with log level ${{ github.event.inputs.log_level }}"
