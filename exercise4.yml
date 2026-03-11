@@ -14,13 +14,13 @@ jobs:
     steps:
       - name: load code
         uses: actions/checkout@v4
-      - name: installing dependencies
-        run: npm ci
       - name: setup node
         uses: actions/setup-node@v4
         with:
           node version: "20"
-          chache: npm
+          cache: npm
+      - name: installing dependencies
+        run: npm ci
       - name: syntax checking
         run: |
           npx tsc --noEmit
@@ -34,13 +34,13 @@ jobs:
     steps:
       - name: load code
         uses: actions/checkout@v4
-      - name: installing dependencies
-        run: npm ci
       - name: setup node
         uses: actions/setup-node@v4
         with:
           node version: "20"
           chache: npm
+      - name: installing dependencies
+        run: npm ci
       - name: building
         if: github.ref == 'refs/heads/main'
         run: npm run build
