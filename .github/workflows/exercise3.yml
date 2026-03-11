@@ -11,7 +11,7 @@ on:
       environment:
         description: 'first job for scanning packages and syntax'
         required: true
-        default: syntax
+        default: dependencies
         type: choice
         options:
           - syntax
