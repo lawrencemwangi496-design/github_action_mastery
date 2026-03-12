@@ -1,0 +1,15 @@
+---
+name: Basic CI
+on:
+  push:
+    branches: ["main"]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start
+        run: echo "Starting CI..."
+      - name: Show date
+        run: date
+      - name: Done
+        run: echo "CI complete"

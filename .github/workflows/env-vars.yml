@@ -1,0 +1,28 @@
+---
+name: Env Vars & Secrets Demo
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  APP_NAME: "temphost"
+  REGISTRY: "ghcr.io"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: "${{ github.sha }}"
+    steps:
+      - name: Print vars
+        run: |
+          echo "APP_NAME: $APP_NAME"
+          echo "REGISTRY: $REGISTRY"
+          echo "IMAGE_NAME: $IMAGE_NAME"
+      - name: Printing repo info
+        run: |
+          echo "${{ github.repository }}"
+          echo "${{ github.ref_name }}"
+          echo "${{ github.actor }}"
