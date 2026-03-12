@@ -30,7 +30,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          chache: npm
+          cache: npm
+          cache-dependency-path: learnhub-central/package-lock.json
       - name: installing dependencies
         run: npm ci
       - name: syntax check

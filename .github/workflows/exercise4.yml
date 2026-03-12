@@ -19,7 +19,7 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          chache-dependency-path: learnhub-central/package-lock.json
+          cache-dependency-path: learnhub-central/package-lock.json
       - name: installing dependencies
         run: npm ci
       - name: syntax checking
