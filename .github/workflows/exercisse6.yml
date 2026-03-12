@@ -18,7 +18,7 @@ jobs:
           chmod 600 key.pem
       - name: add server to known host
         run: |
-          mkdir -p ~/.ssh/known_hosts
+          mkdir -p ~/.ssh
           ssh-keyscan -H "$ip" >> ~/.ssh/known_hosts
       - name: create file
         run: |
