@@ -16,7 +16,7 @@ def test_add_negative():
 import os
 # telegram bot python
 token = os.getenv('BOT_TOKEN')  
-chat_id= os.gentenv('CHAT_ID')
+chat_id= os.getenv('CHAT_ID')
 
 import requests 
 message = 'hello there this is matrix github action running receive three message'
