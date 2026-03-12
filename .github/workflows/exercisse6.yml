@@ -1,9 +1,6 @@
 ---
 name: ssh into server
 on:
-  pull_request:
-    branches:
-      - main
   push:
     branches: [main]
 env:
@@ -17,13 +14,16 @@ jobs:
     steps:
       - name: ssh file
         run: |
-          echo "$ssh" > key.pem
+          printf '%s' "$ssh" > key.pem
           chmod 600 key.pem
+      - name: add server to known host
+        run: ssh-keyscan -H "$ip" >> ~/.ssh/known_hosts
       - name: create file
         run: |
-            ssh -o StrictHostKeyChecking=no -i key.pem $user@$ip "
+            ssh -i key.pem $user@$ip "
             mkdir -p ~/test
             echo 'hello there this is github actions' > ~/test/hello.txt
             "
       - name: deleting key.pem
+        if: ${{ always() }}
         run: rm key.pem
