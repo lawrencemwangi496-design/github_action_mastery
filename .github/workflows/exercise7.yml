@@ -23,6 +23,5 @@ jobs:
           python_version: ${{ matrix.python_version }}
       - name: actual test
         run: |
-          pip install
           pip install -r requirements.txt
           pytest -v
