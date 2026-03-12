@@ -1,0 +1,55 @@
+---
+name: Lint, Test, Build
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Run type: syntax, dependencies, full'
+        required: true
+        default: dependencies
+        type: choice
+        options:
+          - syntax
+          - dependencies
+          - full
+
+jobs:
+  scanning:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: learnhub-central
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: learnhub-central/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Syntax check
+        if: ${{ github.event.inputs.environment == 'syntax' }}
+        run: |
+          npx tsc --noEmit
+          npm run lint
+      - name: Dependency checks
+        if: ${{ github.event.inputs.environment == 'dependencies' }}
+        run: |
+          npm audit
+          npm outdated
+      - name: Full scan
+        if: >
+          ${{ github.event.inputs.environment == 'full' || github.event_name == 'pull_request' }}
+        run: |
+          npx tsc --noEmit
+          npm run lint
+          npm audit
+          npm outdated

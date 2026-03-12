@@ -1,0 +1,32 @@
+---
+name: Matrix Python Tests
+on:
+  push:
+    branches: [main]
+
+jobs:
+  python_test:
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: "python"
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+        os: [ubuntu-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run tests
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: |
+          pip install -r requirements.txt
+          pytest -v
+          python test_sample.py

@@ -1,0 +1,30 @@
+---
+name: Triggers (push, schedule, manual)
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+    inputs:
+      log_level:
+        description: 'Manual run: select log level'
+        required: true
+        default: info
+        type: choice
+        options:
+          - debug
+          - warn
+          - info
+          - error
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Print log level
+        run: echo "running with log level ${{ github.event.inputs.log_level }}"

@@ -1,0 +1,61 @@
+name: Security Scan (Trivy + TruffleHog + npm audit)
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "security scan mode"
+        required: true
+        default: vulnerabilities
+        type: choice
+        options:
+          - vulnerabilities
+          - dependencies
+          - leaks
+          - full
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: learnhub-central
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        run: npm ci
+      - name: npm audit
+        run: npm audit --audit-level=high
+
+  trivy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy scan (filesystem)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "learnhub-central"
+          severity: "HIGH,CRITICAL"
+          exit-code: "1"
+
+  leaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: TruffleHog scan
+        uses: trufflesecurity/trufflehog@main
+        with:
+          fetch-depth: "0"
+          extra-args: "--only-verified"

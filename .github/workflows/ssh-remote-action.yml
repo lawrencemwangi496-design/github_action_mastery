@@ -1,0 +1,29 @@
+---
+name: SSH Remote Action (create remote file)
+on:
+  push:
+    branches: [main]
+
+env:
+  ssh: ${{ secrets.SSH_PRIVATE_KEY }}
+  ip: ${{ secrets.SERVER_IP }}
+  user: ${{ secrets.SERVER_USERNAME }}
+
+jobs:
+  create_remote_file:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write key file
+        run: |
+          printf '%s' "$ssh" > key.pem
+          chmod 600 key.pem
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$ip" >> ~/.ssh/known_hosts
+      - name: Create file on remote
+        run: |
+          ssh -i key.pem $user@$ip "mkdir -p ~/test && echo 'hello from actions' > ~/test/hello.txt"
+      - name: Cleanup key
+        if: ${{ always() }}
+        run: rm -f key.pem
