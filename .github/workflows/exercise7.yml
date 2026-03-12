@@ -28,4 +28,4 @@ jobs:
         run: |
           pip install -r requirements.txt
           pytest -v
-          python test_sample.py
+          python test_sample.py 
