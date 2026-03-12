@@ -1,0 +1,29 @@
+---
+name: ssh into server
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches: [main]
+env:
+  ssh: ${{ secrets.SSH_PRIVATE_KEY }}
+  ip: ${{ secrets.SERVER_IP }}
+  user: ${{ secrets.SERVER_USERNAME }}
+
+jobs:
+  file:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ssh file
+        run: |
+          echo "$ssh" > key.pem
+          chmod 600 key.pem
+      - name: create file
+        run: |
+            ssh -o StrictHostKeyChecking=no -i key.pem $user@$ip "
+            mkdir -p ~/test
+            echo 'hello there this is github actions' > ~/test/hello.txt
+            "
+      - name: deleting key.pem
+        run: rm key.pem
