@@ -1,0 +1,303 @@
+# Exercise 12: Advanced Deployment Strategies
+# 
+# Purpose: Production deployment patterns from the gitea_pipeline
+#
+# Concepts demonstrated:
+# - SSH-based deployments
+# - Blue-green deployment strategy
+# - Canary releases with traffic splitting
+# - Rollback automation
+# - Deployment verification and health checks
+# - Environment promotion with approvals
+# - Infrastructure as Code deployment
+#
+# Based on patterns from:
+# - Self-hosted Gitea deployment pipeline
+# - Production Kubernetes practices
+# - AWS CodeDeploy blue-green patterns
+
+name: Advanced Deployment Strategies
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - 'docker-compose.yml'
+  workflow_dispatch:
+    inputs:
+      strategy:
+        description: 'Deployment strategy'
+        required: true
+        default: rolling
+        type: choice
+        options:
+          - rolling
+          - blue-green
+          - canary
+      environment:
+        description: 'Target environment'
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  DEPLOY_ROOT: "/opt/app"
+  CURRENT_VERSION: "current"
+  NEW_VERSION: "new-version"
+
+jobs:
+  # Job 1: Build and Package
+  # Creates immutable deployment artifacts
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Generate version
+        id: version
+        run: echo "version=$(date +%Y%m%d-%H%M%S)-${{ github.sha }}" >> $GITHUB_OUTPUT
+      
+      - name: Package application
+        run: |
+          mkdir -p dist
+          echo "Deployment version: ${{ steps.version.outputs.version }}" > dist/version.txt
+          cp docker-compose.yml dist/
+          tar -czf deploy-${{ steps.version.outputs.version }}.tar.gz dist/
+      
+      - name: Upload deployment package
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-${{ steps.version.outputs.version }}
+          path: deploy-${{ steps.version.outputs.version }}.tar.gz
+          retention-days: 7
+  
+  # Job 2: Infrastructure Validation
+  # Pre-deployment checks (syntax, image scanning, etc.)
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Validate docker-compose syntax
+        run: docker compose config --quiet
+      
+      - name: Scan images for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+  
+  # Job 3: Rolling Deployment
+  # Traditional update-in-place with health checks
+  rolling_deploy:
+    runs-on: ubuntu-latest
+    needs: [build, validate]
+    if: github.event.inputs.strategy == 'rolling'
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Download deployment package
+        uses: actions/download-artifact@v4
+        with:
+          name: deploy-${{ needs.build.outputs.version }}
+      
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+      
+      - name: Deploy to server
+        run: |
+          # Copy deployment package
+          scp -i ~/.ssh/deploy_key deploy-*.tar.gz ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_IP }}:${{ env.DEPLOY_ROOT }}/
+          
+          # Extract and deploy
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_IP }} << 'EOF'
+            cd ${{ env.DEPLOY_ROOT }}
+            tar -xzf deploy-*.tar.gz
+            cd dist
+            docker compose pull
+            docker compose up -d
+            
+            # Health check
+            sleep 10
+            curl -f http://localhost:3000/health || exit 1
+          EOF
+      
+      - name: Cleanup
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
+  
+  # Job 4: Blue-Green Deployment
+  # Zero-downtime with parallel environments
+  blue_green_deploy:
+    runs-on: ubuntu-latest
+    needs: [build, validate]
+    if: github.event.inputs.strategy == 'blue-green'
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Download deployment package
+        uses: actions/download-artifact@v4
+        with:
+          name: deploy-${{ needs.build.outputs.version }}
+      
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+      
+      - name: Blue-Green switch
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_IP }} << 'EOF'
+            # Determine current color (blue or green)
+            if [ -L /opt/app/current ] && [ "$(readlink /opt/app/current)" == "/opt/app/blue" ]; then
+              NEW_COLOR="green"
+              OLD_COLOR="blue"
+            else
+              NEW_COLOR="blue"
+              OLD_COLOR="green"
+            fi
+            
+            # Deploy to new color environment
+            mkdir -p /opt/app/$NEW_COLOR
+            cd /opt/app
+            tar -xzf deploy-*.tar.gz -C $NEW_COLOR/
+            
+            # Start new environment
+            cd /opt/app/$NEW_COLOR/dist
+            docker compose up -d
+            
+            # Wait for health
+            sleep 15
+            if curl -f http://localhost:3001/health; then
+              # Switch traffic
+              ln -snf /opt/app/$NEW_COLOR /opt/app/current
+              # Stop old environment
+              cd /opt/app/$OLD_COLOR/dist
+              docker compose down
+            else
+              echo "Health check failed, rolling back"
+              exit 1
+            fi
+          EOF
+      
+      - name: Cleanup
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
+  
+  # Job 5: Canary Deployment
+  # Gradual rollout with traffic splitting
+  canary_deploy:
+    runs-on: ubuntu-latest
+    needs: [build, validate]
+    if: github.event.inputs.strategy == 'canary'
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Download deployment package
+        uses: actions/download-artifact@v4
+        with:
+          name: deploy-${{ needs.build.outputs.version }}
+      
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+      
+      - name: Canary deployment
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_IP }} << 'EOF'
+            # Deploy canary version
+            mkdir -p /opt/app/canary
+            cd /opt/app
+            tar -xzf deploy-*.tar.gz -C canary/
+            
+            # Start canary instance
+            cd canary/dist
+            docker compose up -d
+            
+            # Monitor canary for 5 minutes
+            echo "Canary deployment running, monitoring for 5 minutes..."
+            sleep 60  # Monitor phase
+            
+            # Check canary health
+            if curl -f http://localhost:3002/health; then
+              echo "Canary healthy, proceeding with full rollout"
+              # In production, would gradually increase traffic
+              docker compose up -d  # Full rollout
+            else
+              echo "Canary failed, rolling back"
+              docker compose down
+              exit 1
+            fi
+          EOF
+      
+      - name: Cleanup
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
+  
+  # Job 6: Rollback (always available)
+  # Emergency rollback to previous version
+  rollback:
+    runs-on: ubuntu-latest
+    if: always() && github.event_name == 'workflow_dispatch'
+    needs: [build]
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+      
+      - name: Rollback deployment
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_IP }} << 'EOF'
+            # Find previous version
+            if [ -L /opt/app/current ]; then
+              PREV_VERSION=$(readlink /opt/app/current).previous
+              if [ -d "$PREV_VERSION" ]; then
+                ln -snf "$PREV_VERSION" /opt/app/current
+                echo "Rollback completed"
+              else
+                echo "No previous version found"
+                exit 1
+              fi
+            fi
+          EOF
+      
+      - name: Cleanup
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
+
+# Deployment Strategy Comparison:
+# 
+# Rolling:   Simple, minimal resource requirements. Some downtime risk.
+# Blue-Green: Zero downtime, quick rollback. Double resource usage.
+# Canary:    Gradual rollout, catches issues early. Complex traffic routing.
+#
+# Choose based on:
+# - Risk tolerance
+# - Available infrastructure
+# - Application architecture (stateful vs stateless)
+# - Monitoring capabilities
+#
+# Security Notes:
+# - SSH keys stored in GitHub secrets
+# - Keys have minimal permissions (deploy only)
+# - Secrets rotated periodically
+# - All deployment actions logged

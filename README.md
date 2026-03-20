@@ -19,7 +19,17 @@ This repository documents the systematic learning of GitHub Actions through prac
 | [07-matrix-strategy.yml](exercises/07-matrix-strategy.yml) | Matrix Testing | Multi-version testing, parallel execution, fail-fast |
 | [09-security-scan.yml](exercises/09-security-scan.yml) | Security Scanning | npm audit, Trivy, TruffleHog; scheduled/manual scans |
 
+## Advanced Patterns (Production-Ready)
+
+| Exercise | Topic | Key Concepts |
+|----------|-------|--------------|
+| [10-cicd-pipeline.yml](exercises/10-cicd-pipeline.yml) | Complete CI/CD Pipeline | Lint, test, build, artifacts, environment promotion, manual approvals |
+| [11-security-orchestration.yml](exercises/11-security-orchestration.yml) | Security Orchestration | Multi-tool scanning, parallel jobs, aggregated reporting, Telegram alerts |
+| [12-deployment-strategies.yml](exercises/12-deployment-strategies.yml) | Deployment Strategies | Rolling, blue-green, canary deployments; SSH automation; rollback capabilities |
+
 ## Exercise Details
+
+### Foundational Exercises (01-09)
 
 ### 01: Basic CI Pipeline
 The foundation: a workflow that triggers on push to main, runs a simple sequence of shell commands, and logs execution. Establishes the basic structure before adding complexity.

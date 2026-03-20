@@ -1,0 +1,213 @@
+# Exercise 10: Complete CI/CD Pipeline
+# 
+# Purpose: Production-ready CI/CD pipeline combining multiple concepts:
+# - Multiple triggers (push, PR, workflow_dispatch)
+# - Job dependencies with needs
+# - Conditional execution based on branch and event
+# - Artifact generation and persistence
+# - Environment-specific deployment
+#
+# This workflow demonstrates a complete software delivery lifecycle:
+# 1. Lint and test on every change
+# 2. Build and package on main branch only
+# 3. Deploy to staging manually
+# 4. Promote to production after approval
+#
+# Concepts demonstrated:
+# - Trigger strategies (push, PR, dispatch, schedule)
+# - Job dependencies (needs)
+# - Conditional steps (if conditions)
+# - Environment contexts (staging vs production)
+# - Artifact upload/download between jobs
+# - Manual approval gates (environments)
+
+name: Complete CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 8 * * 1'  # Weekly build on Monday 8am
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target deployment environment'
+        required: false
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+          - both
+
+env:
+  APP_NAME: "sample-app"
+  REGISTRY: "ghcr.io"
+
+jobs:
+  # Job 1: Code Quality
+  # Runs on all triggers except pushes to main (covered by tests)
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run linter
+        run: npm run lint 2>&1 | tee lint.log
+      
+      - name: Upload lint results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lint-results
+          path: lint.log
+  
+  # Job 2: Unit Tests
+  # Runs on all triggers, must pass before merge
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ['18', '20']
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests with coverage
+        run: |
+          npm test -- --coverage
+          npm test -- --json --outputFile=test-results.json
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-node${{ matrix.node-version }}
+          path: test-results.json
+  
+  # Job 3: Build
+  # Only runs on main branch (production code)
+  # Depends on lint and test passing
+  build:
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build application
+        run: npm run build
+      
+      - name: Package build artifacts
+        run: |
+          tar -czf ${{ env.APP_NAME }}-${{ github.sha }}.tar.gz dist/
+          echo "${{ github.sha }}" > version.txt
+      
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ github.sha }}
+          path: |
+            ${{ env.APP_NAME }}-${{ github.sha }}.tar.gz
+            version.txt
+          retention-days: 30
+  
+  # Job 4: Staging Deployment
+  # Manual trigger after build
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: >
+      (github.ref == 'refs/heads/main') &&
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.environment == 'staging' ||
+        github.event.inputs.environment == 'both'))
+    environment:
+      name: staging
+      url: https://staging.example.com
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-${{ github.sha }}
+      
+      - name: Deploy to staging
+        run: |
+          echo "Deploying to staging environment"
+          echo "Build version: $(cat version.txt)"
+          # Add actual deployment commands here
+          # Example: scp ${{ env.APP_NAME }}-${{ github.sha }}.tar.gz user@staging:/opt/${{ env.APP_NAME }}/
+          
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests on staging"
+          # Add health check and smoke test commands
+          curl -f https://staging.example.com/health || exit 1
+  
+  # Job 5: Production Deployment
+  # Manual trigger after staging deployment
+  # Requires explicit approval via GitHub environments
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    if: >
+      (github.ref == 'refs/heads/main') &&
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.environment == 'production' ||
+        github.event.inputs.environment == 'both'))
+    environment:
+      name: production
+      url: https://example.com
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-${{ github.sha }}
+      
+      - name: Deploy to production
+        run: |
+          echo "Deploying to production environment"
+          echo "Build version: $(cat version.txt)"
+          # Add actual deployment commands here
+          # Example: scp ${{ env.APP_NAME }}-${{ github.sha }}.tar.gz user@prod:/opt/${{ env.APP_NAME }}/
+          
+      - name: Verify deployment
+        run: |
+          echo "Verifying production deployment"
+          # Add health check and verification commands
+          curl -f https://example.com/health || exit 1
+
+# Summary: This workflow demonstrates a complete CI/CD pipeline with:
+# - Parallel testing across multiple Node.js versions
+# - Artifact persistence between jobs
+# - Environment-specific deployments
+# - Manual approval gates for production
+# - Integration with GitHub environments for audit trails

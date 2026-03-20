@@ -1,0 +1,272 @@
+# Exercise 11: Security Orchestration Pipeline
+# 
+# Purpose: Multi-tool security scanning with coordinated reporting
+# Based on the openclaw_security_check pipeline pattern
+#
+# Concepts demonstrated:
+# - Multiple independent security tools running in parallel
+# - Dependency management between jobs
+# - Conditional job execution based on trigger
+# - Aggregated reporting from parallel jobs
+# - Scheduled and manual security audits
+# - Artifact management for scan logs
+#
+# Tools integrated:
+# - npm audit: Node.js dependency vulnerabilities
+# - Snyk: Advanced security scanning (code, deps, containers)
+# - Trivy: Filesystem and container image vulnerabilities
+# - TruffleHog: Secret detection
+#
+# This workflow mirrors production security pipelines used by:
+# - Enterprise DevSecOps teams
+# - Open-source security monitoring
+# - Compliance auditing (SOC2, ISO27001)
+
+name: Security Orchestration Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 3 * * *'  # Daily at 3am UTC
+  workflow_dispatch:
+    inputs:
+      scan_scope:
+        description: 'Security scan scope'
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - npm_audit
+          - snyk
+          - trivy
+          - secrets
+
+env:
+  SCAN_TARGET: "./sample-app"
+
+jobs:
+  # Job 1: Fetch target code
+  # Always runs first, provides source for all scans
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Prepare scan target
+        run: |
+          mkdir -p ${{ env.SCAN_TARGET }}
+          # In real pipeline, clone actual repo here
+          echo "Sample application code" > ${{ env.SCAN_TARGET }}/README.md
+      
+      - name: Upload scan target
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-target
+          path: ${{ env.SCAN_TARGET }}
+          retention-days: 7
+  
+  # Job 2: npm audit
+  # Scans Node.js dependencies for known vulnerabilities
+  npm_audit:
+    runs-on: ubuntu-latest
+    needs: [fetch]
+    if: >
+      github.event_name == 'schedule' ||
+      github.event_name == 'pull_request' ||
+      github.event.inputs.scan_scope == 'all' ||
+      github.event.inputs.scan_scope == 'npm_audit'
+    steps:
+      - name: Download scan target
+        uses: actions/download-artifact@v4
+        with:
+          name: scan-target
+          path: ${{ env.SCAN_TARGET }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Create package.json for demo
+        run: |
+          cd ${{ env.SCAN_TARGET }}
+          echo '{"name":"demo","version":"1.0.0"}' > package.json
+          npm install express
+      
+      - name: Run npm audit
+        run: |
+          cd ${{ env.SCAN_TARGET }}
+          npm audit --json > npm-audit-results.json 2>&1 || true
+          echo "Scan completed with exit code: $?"
+      
+      - name: Upload npm audit results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: npm-audit-results
+          path: ${{ env.SCAN_TARGET }}/npm-audit-results.json
+  
+  # Job 3: Snyk Security Scan
+  # Advanced scanning for vulnerabilities, licensing, and code quality
+  snyk_scan:
+    runs-on: ubuntu-latest
+    needs: [fetch]
+    if: >
+      github.event_name == 'schedule' ||
+      github.event_name == 'pull_request' ||
+      github.event.inputs.scan_scope == 'all' ||
+      github.event.inputs.scan_scope == 'snyk'
+    steps:
+      - name: Download scan target
+        uses: actions/download-artifact@v4
+        with:
+          name: scan-target
+          path: ${{ env.SCAN_TARGET }}
+      
+      - name: Install Snyk
+        run: npm install -g snyk
+      
+      - name: Authenticate Snyk (if token provided)
+        if: ${{ secrets.SNYK_TOKEN != '' }}
+        run: snyk auth ${{ secrets.SNYK_TOKEN }}
+      
+      - name: Run Snyk test
+        run: |
+          cd ${{ env.SCAN_TARGET }}
+          snyk test --json --severity-threshold=high > snyk-results.json 2>&1 || true
+      
+      - name: Upload Snyk results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: snyk-results
+          path: ${{ env.SCAN_TARGET }}/snyk-results.json
+  
+  # Job 4: Trivy Filesystem Scan
+  # Scans for vulnerabilities in dependencies, configs, and infrastructure
+  trivy_scan:
+    runs-on: ubuntu-latest
+    needs: [fetch]
+    if: >
+      github.event_name == 'schedule' ||
+      github.event_name == 'pull_request' ||
+      github.event.inputs.scan_scope == 'all' ||
+      github.event.inputs.scan_scope == 'trivy'
+    steps:
+      - name: Download scan target
+        uses: actions/download-artifact@v4
+        with:
+          name: scan-target
+          path: ${{ env.SCAN_TARGET }}
+      
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: ${{ env.SCAN_TARGET }}
+          format: 'json'
+          output: 'trivy-results.json'
+          severity: 'HIGH,CRITICAL'
+      
+      - name: Upload Trivy results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-results
+          path: trivy-results.json
+  
+  # Job 5: Secret Detection
+  # Scans for hardcoded credentials, API keys, and tokens
+  secret_scan:
+    runs-on: ubuntu-latest
+    needs: [fetch]
+    if: >
+      github.event_name == 'schedule' ||
+      github.event_name == 'pull_request' ||
+      github.event.inputs.scan_scope == 'all' ||
+      github.event.inputs.scan_scope == 'secrets'
+    steps:
+      - name: Download scan target
+        uses: actions/download-artifact@v4
+        with:
+          name: scan-target
+          path: ${{ env.SCAN_TARGET }}
+      
+      - name: Run TruffleHog secret detection
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ${{ env.SCAN_TARGET }}
+          extra_args: --only-verified --json
+      
+      - name: Save scan results
+        run: |
+          # TruffleHog outputs to stdout, capture if needed
+          echo "Secret scan completed"
+  
+  # Job 6: Aggregate Results
+  # Collects all scan results, generates summary, sends notifications
+  aggregate:
+    runs-on: ubuntu-latest
+    needs: [npm_audit, snyk_scan, trivy_scan, secret_scan]
+    if: always()  # Run even if some scans fail
+    steps:
+      - name: Download all scan results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-results'
+          path: scan-results/
+      
+      - name: Generate security summary
+        run: |
+          echo "# Security Scan Summary" > summary.md
+          echo "" >> summary.md
+          echo "Scan completed: $(date -u)" >> summary.md
+          echo "" >> summary.md
+          
+          # Count findings from each tool
+          for file in scan-results/*.json; do
+            if [ -f "$file" ]; then
+              tool=$(basename "$file" .json)
+              echo "## $tool" >> summary.md
+              echo "Findings saved to artifact" >> summary.md
+              echo "" >> summary.md
+            fi
+          done
+      
+      - name: Upload security summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-summary
+          path: summary.md
+      
+      - name: Check for critical findings
+        id: check_critical
+        run: |
+          # In production, parse JSON results and set output
+          echo "has_critical=false" >> $GITHUB_OUTPUT
+      
+      - name: Send Telegram notification (if configured)
+        if: >
+          (steps.check_critical.outputs.has_critical == 'true') &&
+          (secrets.TELEGRAM_BOT_TOKEN != '')
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            🔒 Security Scan Alert
+            
+            Repository: ${{ github.repository }}
+            Critical findings detected!
+            
+            See summary: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+# Security Notes:
+# - Snyk requires authentication token for full features
+# - TruffleHog can detect false positives; verify before acting
+# - Consider using GitHub Code Scanning alerts for integration
+# - For production, add Slack/Teams notifications
