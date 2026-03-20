@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: learnhub-central
+        working-directory: ./learnhub-central
     steps:
       - name: Load source code
         uses: actions/checkout@v4

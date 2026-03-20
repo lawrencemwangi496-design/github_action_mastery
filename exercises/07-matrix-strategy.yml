@@ -24,7 +24,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     defaults:
       run:
-        working-directory: "python"
+        working-directory: ./python
     strategy:
       fail-fast: false  # Continue other jobs if one fails
       matrix:

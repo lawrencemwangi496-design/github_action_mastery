@@ -1,25 +1,41 @@
-def add(a, b):
-    return a + b
+#!/usr/bin/env python3
+"""
+Sample test suite for GitHub Actions matrix testing.
+Demonstrates basic pytest functionality.
+"""
 
-def subtract(a, b):
-    return a - b
+import pytest
 
-def test_add():
-    assert add(2, 3) == 5
 
-def test_subtract():
-    assert subtract(10, 4) == 6
+def test_addition():
+    """Basic test that should always pass."""
+    assert 1 + 1 == 2
 
-def test_add_negative():
-     assert add(-1, -1) == -2
 
-import os
-# telegram bot python
-token = os.getenv('BOT_TOKEN')  
-chat_id= os.getenv('CHAT_ID')
+def test_string_concatenation():
+    """Test string operations."""
+    assert "hello" + " " + "world" == "hello world"
 
-import requests 
-message = 'hello there this is matrix github action running receive three message'
-url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
-r = requests.get(url)
-print((r.json()))
+
+@pytest.mark.parametrize("input,expected", [
+    (2, 4),
+    (3, 9),
+    (4, 16),
+])
+def test_square(input, expected):
+    """Parameterized test example."""
+    assert input ** 2 == expected
+
+
+class TestMathOperations:
+    """Group related tests."""
+    
+    def test_multiply(self):
+        assert 3 * 4 == 12
+    
+    def test_divide(self):
+        assert 10 / 2 == 5
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
