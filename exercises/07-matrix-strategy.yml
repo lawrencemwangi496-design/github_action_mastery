@@ -1,0 +1,49 @@
+# Exercise 7: Matrix Strategy for Multi-Version Testing
+# 
+# Learning Objectives:
+# - Matrix strategy for parallel testing
+# - Testing across multiple Python versions
+# - Fail-fast behavior configuration
+# - Environment variable propagation
+#
+# This workflow tests Python code across versions 3.10-3.12
+# on Ubuntu. Matrix strategy eliminates duplicate workflow files
+# by defining test combinations declaratively.
+#
+# Matrix expands to 3 parallel jobs (one per Python version).
+# Secrets required: BOT_TOKEN, CHAT_ID (for test notifications).
+
+name: Matrix Testing
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  python_test:
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: "python"
+    strategy:
+      fail-fast: false  # Continue other jobs if one fails
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+        os: [ubuntu-latest]
+    steps:
+      - name: Load source code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Run test suite
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: |
+          pip install -r requirements.txt
+          pytest -v
+          python test_sample.py

@@ -1,0 +1,52 @@
+# Exercise 6: SSH Deployment Automation
+# 
+# Learning Objectives:
+# - SSH key handling in CI environments
+# - Remote command execution
+# - Known hosts verification
+# - Cleanup with always() condition
+#
+# Security practices demonstrated:
+# - Private key stored as GitHub secret (not in code)
+# - Key written with 600 permissions (restricted access)
+# - Known hosts verification to prevent MITM
+# - Key deletion even on failure (always())
+#
+# This automates remote server operations without manual SSH.
+# Secrets required: SSH_PRIVATE_KEY, SERVER_IP, SERVER_USERNAME
+
+name: SSH Deployment
+
+on:
+  push:
+    branches: [main]
+
+env:
+  ssh: ${{ secrets.SSH_PRIVATE_KEY }}
+  ip: ${{ secrets.SERVER_IP }}
+  user: ${{ secrets.SERVER_USERNAME }}
+
+jobs:
+  file:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write SSH key to file
+        run: |
+          printf '%s' "$ssh" > key.pem
+          chmod 600 key.pem
+      
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$ip" >> ~/.ssh/known_hosts
+      
+      - name: Create test file on remote server
+        run: |
+          ssh -i key.pem $user@$ip "
+            mkdir -p ~/test
+            echo 'Deployed via GitHub Actions at $(date)' > ~/test/hello.txt
+          "
+      
+      - name: Remove SSH key (cleanup)
+        if: ${{ always() }}
+        run: rm key.pem

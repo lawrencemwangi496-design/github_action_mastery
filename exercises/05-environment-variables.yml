@@ -1,0 +1,45 @@
+# Exercise 5: Environment Variables and Secrets
+# 
+# Learning Objectives:
+# - Workflow-level environment variables
+# - Job-level environment variables
+# - Accessing GitHub context variables
+# - Secrets management (referenced but not exposed)
+#
+# This demonstrates three levels of variable usage:
+# - Global workflow env (APP_NAME, REGISTRY)
+# - Job-level env (IMAGE_NAME)
+# - GitHub context (repository, ref, actor)
+#
+# Variables and contexts: https://docs.github.com/en/actions/learn-github-actions/variables
+# Secrets must be configured in repository Settings > Secrets and variables.
+
+name: Environment Variables
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  APP_NAME: "temphost"
+  REGISTRY: "ghcr.io"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: "${{ github.sha }}"
+    steps:
+      - name: Display configured variables
+        run: |
+          echo "Application: $APP_NAME"
+          echo "Container registry: $REGISTRY"
+          echo "Image tag: $IMAGE_NAME"
+      
+      - name: Display GitHub context
+        run: |
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch/Tag: ${{ github.ref_name }}"
+          echo "Triggered by: ${{ github.actor }}"

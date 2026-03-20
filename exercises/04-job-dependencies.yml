@@ -1,0 +1,71 @@
+# Exercise 4: Job Dependencies and Execution Order
+# 
+# Learning Objectives:
+# - Job dependency chains with `needs`
+# - Parallel vs sequential execution
+# - Conditional job execution based on branch
+# - Build artifacts and failure propagation
+#
+# This workflow enforces order:
+# 1. Syntax validation must pass first
+# 2. Build only runs if syntax passes AND we're on main branch
+#
+# Demonstrates dependency management essential for safe deployments.
+
+name: Job Dependencies
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: learnhub-central
+    steps:
+      - name: Load source code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: learnhub-central/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run syntax validation
+        run: |
+          npx tsc --noEmit
+          npm run lint
+  
+  build:
+    needs: syntax  # Only runs if syntax job succeeds
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: learnhub-central
+    steps:
+      - name: Load source code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: learnhub-central/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build application
+        # Only build on main branch (not PRs)
+        if: github.ref == 'refs/heads/main'
+        run: npm run build

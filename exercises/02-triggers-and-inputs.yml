@@ -1,0 +1,47 @@
+# Exercise 2: Workflow Triggers and Manual Inputs
+# 
+# Learning Objectives:
+# - Multiple trigger types: push, schedule, workflow_dispatch
+# - Path filters for selective execution
+# - Manual workflow inputs with typed options
+# - Cron syntax for scheduled runs
+#
+# Triggers demonstrated:
+# - push: only when src/ or package.json changes (reduces noise)
+# - schedule: daily at midnight UTC
+# - workflow_dispatch: manual trigger with environment selection
+#
+# This teaches granular control over when workflows execute.
+
+name: Multi-Trigger Workflow
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+  schedule:
+    - cron: "0 0 * * *"  # Daily at midnight UTC
+  workflow_dispatch:
+    inputs:
+      log_level:
+        description: 'Logging verbosity level'
+        required: true
+        default: info
+        type: choice
+        options:
+          - debug
+          - warn
+          - info
+          - error
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Execute with specified log level
+        run: echo "Running workflow with log level ${{ github.event.inputs.log_level }}"

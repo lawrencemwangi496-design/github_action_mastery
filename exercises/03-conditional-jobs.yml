@@ -1,0 +1,76 @@
+# Exercise 3: Conditional Job Execution
+# 
+# Learning Objectives:
+# - Conditional steps with `if` statements
+# - Context-dependent execution based on trigger type
+# - Manual input branching logic
+# - Combining multiple conditions
+#
+# This workflow demonstrates three execution paths:
+# - syntax check only (when manually selecting 'syntax')
+# - dependency audit only (when selecting 'dependencies')
+# - full scan (when selecting 'full' OR triggered by PR)
+#
+# Note: This references `learnhub-central` (private repo) as the target.
+
+name: Conditional Job Execution
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Scan scope'
+        required: true
+        default: dependencies
+        type: choice
+        options:
+          - syntax
+          - dependencies
+          - full
+
+jobs:
+  scanning:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: learnhub-central
+    steps:
+      - name: Load source code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: learnhub-central/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Syntax validation (TypeScript + lint)
+        if: ${{ github.event.inputs.environment == 'syntax' }}
+        run: |
+          npx tsc --noEmit
+          npm run lint
+      
+      - name: Dependency audit (security + outdated packages)
+        if: ${{ github.event.inputs.environment == 'dependencies' }}
+        run: |
+          npm audit
+          npm outdated
+      
+      - name: Full validation suite
+        if: >
+          ${{ github.event.inputs.environment == 'full'
+          || github.event_name == 'pull_request' }}
+        run: |
+          npx tsc --noEmit
+          npm run lint
+          npm audit
+          npm outdated
